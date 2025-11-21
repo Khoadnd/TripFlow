@@ -1,0 +1,33 @@
+services:
+  server:
+    build: ./server
+    expose:
+      - "3000"
+    environment:
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-change_this_to_a_secure_random_string}
+      - CLIENT_URL=${CLIENT_URL:-https://localhost}
+      - NTFY_TOPIC=${NTFY_TOPIC:-change_this_to_a_secret_topic}
+      - DB_PATH=/app/data/trip.db
+    volumes:
+      - trip_data:/app/data
+      - trip_uploads:/app/uploads
+    restart: always
+
+  client:
+    build:
+      context: ./client
+      args:
+        - VITE_API_URL=
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./client/certs:/etc/nginx/certs
+    depends_on:
+      - server
+    restart: always
+
+volumes:
+  trip_data:
+  trip_uploads:
