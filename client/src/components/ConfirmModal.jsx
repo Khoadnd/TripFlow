@@ -1,5 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 import Modal from './Modal';
+import Button from './Button';
 
 export default function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Delete', cancelText = 'Cancel', isDestructive = true }) {
   return (
@@ -15,25 +16,21 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, title, messag
         </div>
         
         <div className="flex justify-end gap-3 mt-4">
-          <button 
+          <Button 
+            variant="ghost"
             onClick={onClose} 
-            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl font-medium transition-colors"
           >
             {cancelText}
-          </button>
-          <button 
+          </Button>
+          <Button 
             onClick={() => {
               onConfirm();
               onClose();
             }} 
-            className={`px-6 py-2 text-white rounded-xl font-medium transition-all shadow-lg transform hover:scale-105 ${
-              isDestructive 
-                ? 'bg-red-600 hover:bg-red-700 shadow-red-500/30' 
-                : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'
-            }`}
+            variant={isDestructive ? 'destructive' : 'primary'}
           >
             {confirmText}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

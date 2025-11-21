@@ -20,8 +20,13 @@ services:
       args:
         - VITE_API_URL=
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_PORT:-80}:80"
+      - "${SSL_PORT:-443}:443"
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME:-localhost}
+      - LISTEN_IP=${LISTEN_IP:-}
+      - HTTP_PORT=80
+      - SSL_PORT=443
     volumes:
       - ./client/certs:/etc/nginx/certs
     depends_on:

@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Plus, X, Trash2, Calendar, Pencil, CheckCircle2, Circle, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn, API_BASE_URL, api } from '../lib/utils';
+import { cn, api } from '../lib/utils';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
-
-const API_URL = `${API_BASE_URL}/api/todos`;
+import PageHeader from '../components/PageHeader';
+import Button from '../components/Button';
+import Card from '../components/Card';
+import { useResource } from '../hooks/useResource';
 
 const COLUMNS = {
   pending: { id: 'pending', title: 'To Do', icon: Circle, color: 'text-gray-500', bg: 'bg-gray-50' },
@@ -15,25 +17,26 @@ const COLUMNS = {
 };
 
 export default function Todos() {
-  const [items, setItems] = useState([]);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState(null);
-  const [editingItem, setEditingItem] = useState(null);
-  const [formData, setFormData] = useState({ title: '', due_date: '' });
+  const initialFormState = { title: '', due_date: '', status: 'pending', position: 0 };
 
-  useEffect(() => {
-    fetchItems();
-  }, []);
-
-  const fetchItems = async () => {
-    try {
-      const res = await api.get('/api/todos');
-      setItems(res.data);
-    } catch (error) {
-      console.error("Error fetching todos:", error);
-    }
-  };
+  const {
+    items,
+    setItems,
+    formData,
+    setFormData,
+    isFormOpen,
+    openAddForm,
+    openEditForm,
+    closeForm,
+    isDeleteOpen,
+    openDeleteConfirm,
+    closeDeleteConfirm,
+    itemToDelete,
+    handleDelete,
+    handleSubmit,
+    editingId,
+    fetchItems
+  } = useResource('/api/todos', initialFormState);
 
   const getColumnItems = (status) => items
     .filter(item => (item.status || 'pending') === status)
@@ -100,70 +103,22 @@ export default function Todos() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editingItem) {
-        await api.put(`/api/todos/${editingItem.id}`, formData);
-      } else {
-        await api.post('/api/todos', { ...formData, status: 'pending', position: 0 });
-      }
-      setIsFormOpen(false);
-      setEditingItem(null);
-      setFormData({ title: '', due_date: '' });
-      fetchItems();
-    } catch (error) {
-      console.error("Error saving todo:", error);
-    }
-  };
-
-  const openEdit = (item) => {
-    setEditingItem(item);
-    setFormData({
-      title: item.title,
-      due_date: item.due_date ? new Date(item.due_date).toISOString().split('T')[0] : ''
-    });
-    setIsFormOpen(true);
-  };
-
-  const handleDeleteClick = (item) => {
-    setItemToDelete(item);
-    setIsDeleteOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!itemToDelete) return;
-    try {
-      await api.delete(`/api/todos/${itemToDelete.id}`);
-      fetchItems();
-    } catch (error) {
-      console.error("Error deleting todo:", error);
-    }
-  };
-
   return (
     <div className="h-auto lg:h-full flex flex-col">
-      <div className="flex justify-between items-center mb-6 lg:mb-8 pt-2">
-        <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Task Board</h2>
-            <p className="text-sm md:text-base text-gray-500">Manage your trip checklist</p>
-        </div>
-        <button 
-            onClick={() => {
-                setEditingItem(null);
-                setFormData({ title: '', due_date: '' });
-                setIsFormOpen(true);
-            }} 
-            className="bg-gray-900 text-white px-4 py-2 md:px-5 md:py-2.5 rounded-xl hover:bg-gray-800 flex items-center gap-2 shadow-lg shadow-gray-900/20 transition-all hover:scale-105 text-sm md:text-base"
-        >
-            <Plus className="w-4 h-4 md:w-5 md:h-5" /> <span className="hidden md:inline">New Task</span><span className="md:hidden">Add</span>
-        </button>
-      </div>
+      <PageHeader 
+        title="Task Board" 
+        subtitle="Manage your trip checklist"
+        action={
+            <Button onClick={openAddForm} icon={Plus}>
+                New Task
+            </Button>
+        }
+      />
 
       <Modal
         isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
-        title={editingItem ? 'Edit Task' : 'New Task'}
+        onClose={closeForm}
+        title={editingId ? 'Edit Task' : 'New Task'}
         maxWidth="max-w-md"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -173,11 +128,13 @@ export default function Todos() {
             </div>
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
-                <input type="date" className="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} />
+                <input type="date" className="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={formData.due_date ? String(formData.due_date).split('T')[0] : ''} onChange={e => setFormData({...formData, due_date: e.target.value})} />
             </div>
             <div className="flex justify-end gap-3 pt-4">
-                <button type="button" onClick={() => setIsFormOpen(false)} className="px-6 py-3 text-gray-600 hover:bg-gray-100 rounded-xl font-medium transition-colors">Cancel</button>
-                <button type="submit" className="bg-blue-600 text-white px-8 py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 font-medium transition-all transform hover:scale-105">{editingItem ? 'Save Changes' : 'Create Task'}</button>
+                <Button type="button" variant="ghost" onClick={closeForm}>Cancel</Button>
+                <Button type="submit">
+                    {editingId ? 'Save Changes' : 'Create Task'}
+                </Button>
             </div>
         </form>
       </Modal>
@@ -187,12 +144,12 @@ export default function Todos() {
           {Object.values(COLUMNS).map((column, colIndex) => {
             const Icon = column.icon;
             return (
-            <motion.div 
+            <Card 
                 key={column.id} 
-                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, y: 20 }}
                 transition={{ delay: colIndex * 0.1 }}
-                className={cn("flex flex-col h-full rounded-3xl border border-gray-100/50 p-1", column.bg)}
+                className={cn("flex flex-col h-full p-1 border-gray-100/50", column.bg)}
             >
               <div className="p-4 flex justify-between items-center">
                   <h3 className="font-bold text-gray-700 flex items-center gap-2">
@@ -230,8 +187,12 @@ export default function Todos() {
                             <div className="flex justify-between items-start mb-3">
                                 <h4 className={cn("font-bold text-gray-800 leading-snug", item.status === 'completed' && "line-through text-gray-400")}>{item.title}</h4>
                                 <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => openEdit(item)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"><Pencil className="w-4 h-4" /></button>
-                                    <button onClick={() => handleDeleteClick(item)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                    <Button onClick={() => openEditForm(item)} variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-blue-600 hover:bg-blue-50">
+                                        <Pencil className="w-4 h-4" />
+                                    </Button>
+                                    <Button onClick={() => openDeleteConfirm(item)} variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-red-600 hover:bg-red-50">
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
                                 </div>
                             </div>
                             {item.due_date && (
@@ -250,18 +211,15 @@ export default function Todos() {
                   </div>
                 )}
               </Droppable>
-            </motion.div>
+            </Card>
           )})}
         </div>
       </DragDropContext>
 
       <ConfirmModal
         isOpen={isDeleteOpen}
-        onClose={() => {
-          setIsDeleteOpen(false);
-          setItemToDelete(null);
-        }}
-        onConfirm={handleConfirmDelete}
+        onClose={closeDeleteConfirm}
+        onConfirm={handleDelete}
         title="Delete Task"
         message={`Are you sure you want to delete "${itemToDelete?.title}"? This action cannot be undone.`}
       />

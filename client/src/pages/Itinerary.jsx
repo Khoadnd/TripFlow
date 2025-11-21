@@ -1,132 +1,54 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import axios from 'axios';
 import { Calendar, Clock, MapPin, Plus, Trash2, Plane, Utensils, Activity, MoreHorizontal, X, Pencil, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
-import { cn, API_BASE_URL, api } from '../lib/utils';
+import { cn } from '../lib/utils';
 import Map from '../components/Map';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
-
-const API_URL = `${API_BASE_URL}/api/itinerary`;
+import LocationInput from '../components/LocationInput';
+import PageHeader from '../components/PageHeader';
+import Button from '../components/Button';
+import Card from '../components/Card';
+import { useResource } from '../hooks/useResource';
 
 export default function Itinerary() {
-  const [items, setItems] = useState([]);
-  const [newItem, setNewItem] = useState({ title: '', date: '', time: '', location: '', description: '', type: 'activity', lat: '', lon: '' });
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState(null);
-  const [editingId, setEditingId] = useState(null);
+  const initialFormState = { title: '', date: '', time: '', location: '', description: '', type: 'activity', lat: '', lon: '' };
+  
+  const {
+    items,
+    formData,
+    setFormData,
+    isFormOpen,
+    openAddForm,
+    openEditForm,
+    closeForm,
+    isDeleteOpen,
+    openDeleteConfirm,
+    closeDeleteConfirm,
+    itemToDelete,
+    handleDelete,
+    handleSubmit,
+    editingId
+  } = useResource('/api/itinerary', initialFormState);
+
   const [selectedItem, setSelectedItem] = useState(null);
-  const [searchResults, setSearchResults] = useState([]);
-  const [showResults, setShowResults] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const searchTimeout = useRef(null);
-  const searchCache = useRef({});
 
+  // Clear selected item if it gets deleted
   useEffect(() => {
-    fetchItems();
-  }, []);
-
-  const fetchItems = async () => {
-    try {
-      const res = await api.get('/api/itinerary');
-      setItems(res.data);
-    } catch (error) {
-      console.error("Error fetching itinerary:", error);
+    if (selectedItem && !items.find(i => i.id === selectedItem.id)) {
+      setSelectedItem(null);
     }
-  };
+  }, [items, selectedItem]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editingId) {
-        await api.put(`/api/itinerary/${editingId}`, newItem);
-      } else {
-        await api.post('/api/itinerary', newItem);
-      }
-      resetForm();
-      fetchItems();
-    } catch (error) {
-      console.error("Error saving itinerary item:", error);
-    }
-  };
-
-  const handleEdit = (item) => {
-    setNewItem(item);
-    setEditingId(item.id);
-    setIsFormOpen(true);
-  };
-
-  const handleDeleteClick = (item) => {
-    setItemToDelete(item);
-    setIsDeleteOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!itemToDelete) return;
-    try {
-      await api.delete(`/api/itinerary/${itemToDelete.id}`);
-      if (selectedItem?.id === itemToDelete.id) setSelectedItem(null);
-      fetchItems();
-    } catch (error) {
-      console.error("Error deleting itinerary item:", error);
-    }
-  };
-
-  const handleLocationChange = (e) => {
-      const value = e.target.value;
-      setNewItem({...newItem, location: value});
-      
-      if (searchTimeout.current) {
-          clearTimeout(searchTimeout.current);
-      }
-
-      if (value.length > 2) {
-          setIsSearching(true);
-          searchTimeout.current = setTimeout(async () => {
-              if (searchCache.current[value]) {
-                  setSearchResults(searchCache.current[value]);
-                  setShowResults(true);
-                  setIsSearching(false);
-                  return;
-              }
-
-              try {
-                  // Use Nominatim for better POI search
-                  const res = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${value}&limit=5`);
-                  const results = res.data || [];
-                  searchCache.current[value] = results;
-                  setSearchResults(results);
-                  setShowResults(true);
-              } catch (error) {
-                  console.error("Error searching location:", error);
-              } finally {
-                  setIsSearching(false);
-              }
-          }, 800);
-      } else {
-          setSearchResults([]);
-          setShowResults(false);
-          setIsSearching(false);
-      }
-  };
-
-  const selectLocation = (result) => {
-      setNewItem({
-          ...newItem,
+  const handleLocationSelect = (result) => {
+      setFormData({
+          ...formData,
           location: result.display_name,
           lat: parseFloat(result.lat),
           lon: parseFloat(result.lon)
       });
-      setShowResults(false);
-  };
-
-  const resetForm = () => {
-      setNewItem({ title: '', date: '', time: '', location: '', description: '', type: 'activity', lat: '', lon: '' });
-      setEditingId(null);
-      setIsFormOpen(false);
   };
 
   // Group items by date
@@ -161,94 +83,61 @@ export default function Itinerary() {
     <div className="flex flex-col lg:flex-row h-auto lg:h-full gap-6">
       {/* Timeline Section */}
       <div className="flex-1 lg:overflow-y-auto pr-2 pb-4 lg:pb-0">
-        <div className="flex justify-between items-center mb-8 py-4">
-            <div>
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Itinerary</h2>
-                <p className="text-sm md:text-base text-gray-500">Your journey timeline</p>
-            </div>
-            <button 
-                onClick={() => {
-                    if (isFormOpen) resetForm();
-                    else setIsFormOpen(true);
-                }} 
-                className="bg-gray-900 text-white px-3 py-2 md:px-4 md:py-2 rounded-xl hover:bg-gray-800 flex items-center gap-2 transition-all shadow-lg shadow-gray-900/20 text-sm md:text-base"
-            >
-                <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                Add Event
-            </button>
-        </div>
+        <PageHeader 
+            title="Itinerary" 
+            subtitle="Your journey timeline"
+            action={
+                <Button onClick={openAddForm} icon={Plus}>
+                    Add Event
+                </Button>
+            }
+            className="mb-8"
+        />
 
         <Modal
             isOpen={isFormOpen}
-            onClose={resetForm}
+            onClose={closeForm}
             title={editingId ? 'Edit Event' : 'New Event'}
         >
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 <div className="col-span-1 md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
-                    <input type="text" placeholder="e.g., Visit Eiffel Tower" className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} required />
+                    <input type="text" placeholder="e.g., Visit Eiffel Tower" className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required />
                 </div>
                 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                    <input type="date" className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={newItem.date} onChange={e => setNewItem({...newItem, date: e.target.value})} required />
+                    <input type="date" className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} required />
                 </div>
                 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Time</label>
-                    <input type="time" className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={newItem.time} onChange={e => setNewItem({...newItem, time: e.target.value})} required />
+                    <input type="time" className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} required />
                 </div>
                 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                    <div className="relative">
-                        <MapPin className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
-                        <input 
-                            type="text" 
-                            placeholder="Search for a place..." 
-                            className="w-full bg-gray-50 border-0 p-3 pl-10 pr-10 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" 
-                            value={newItem.location} 
-                            onChange={handleLocationChange}
-                            onFocus={() => newItem.location.length > 2 && setShowResults(true)}
-                            onBlur={() => setTimeout(() => setShowResults(false), 200)}
-                        />
-                        {isSearching && (
-                            <div className="absolute right-3 top-3.5">
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                            </div>
-                        )}
-                        {showResults && searchResults.length > 0 && (
-                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                                {searchResults.map((result, index) => (
-                                    <button 
-                                        key={index}
-                                        type="button"
-                                        onClick={() => selectLocation(result)}
-                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm border-b border-gray-50 last:border-0"
-                                    >
-                                        <span className="font-bold block truncate">{result.display_name.split(',')[0]}</span>
-                                        <span className="text-gray-500 text-xs truncate block">{result.display_name}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    <LocationInput 
+                        value={formData.location}
+                        onChange={(val) => setFormData({...formData, location: val})}
+                        onSelect={handleLocationSelect}
+                    />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Latitude (Optional)</label>
-                        <input type="number" step="any" placeholder="e.g. 30.29" className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={newItem.lat} onChange={e => setNewItem({...newItem, lat: e.target.value})} />
+                        <input type="number" step="any" placeholder="e.g. 30.29" className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={formData.lat} onChange={e => setFormData({...formData, lat: e.target.value})} />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Longitude (Optional)</label>
-                        <input type="number" step="any" placeholder="e.g. 120.16" className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={newItem.lon} onChange={e => setNewItem({...newItem, lon: e.target.value})} />
+                        <input type="number" step="any" placeholder="e.g. 120.16" className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={formData.lon} onChange={e => setFormData({...formData, lon: e.target.value})} />
                     </div>
                 </div>
                 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
-                    <select className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={newItem.type} onChange={e => setNewItem({...newItem, type: e.target.value})}>
+                    <select className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
                         <option value="activity">Activity</option>
                         <option value="flight">Flight</option>
                         <option value="food">Food</option>
@@ -258,12 +147,14 @@ export default function Itinerary() {
                 
                 <div className="col-span-1 md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                    <textarea placeholder="Details about the activity..." className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all h-24 resize-none" value={newItem.description} onChange={e => setNewItem({...newItem, description: e.target.value})}></textarea>
+                    <textarea placeholder="Details about the activity..." className="w-full bg-gray-50 border-0 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all h-24 resize-none" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})}></textarea>
                 </div>
                 
                 <div className="col-span-1 md:col-span-2 flex justify-end gap-3 mt-2">
-                    <button type="button" onClick={resetForm} className="px-6 py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl font-medium transition-colors">Cancel</button>
-                    <button type="submit" className="bg-blue-600 text-white px-8 py-2.5 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 font-medium transition-all transform hover:scale-105">{editingId ? 'Update' : 'Save'}</button>
+                    <Button type="button" variant="ghost" onClick={closeForm}>Cancel</Button>
+                    <Button type="submit">
+                        {editingId ? 'Update' : 'Save'}
+                    </Button>
                 </div>
             </form>
         </Modal>
@@ -286,12 +177,12 @@ export default function Itinerary() {
                     
                     <div className="space-y-6 pl-4 border-l-2 border-blue-100 ml-4 relative">
                         {groupedItems[date].map((item, index) => (
-                            <motion.div 
+                            <Card 
                                 key={item.id}
                                 layoutId={`card-${item.id}`}
                                 onClick={() => setSelectedItem(item)}
                                 className={cn(
-                                    "relative bg-white p-5 rounded-2xl shadow-sm border border-gray-100 cursor-pointer transition-all hover:shadow-lg group overflow-hidden",
+                                    "relative p-5 cursor-pointer transition-all hover:shadow-lg group overflow-hidden",
                                     selectedItem?.id === item.id ? "ring-2 ring-blue-500 shadow-md" : ""
                                 )}
                                 whileHover={{ scale: 1.02, y: -2 }}
@@ -321,7 +212,7 @@ export default function Itinerary() {
                                         <ChevronRight className={cn("w-4 h-4 text-gray-400 transition-all", selectedItem?.id === item.id ? "rotate-90 text-blue-500" : "group-hover:text-blue-500 group-hover:translate-x-0.5")} />
                                     </div>
                                 </div>
-                            </motion.div>
+                            </Card>
                         ))}
                     </div>
                 </motion.div>
@@ -332,21 +223,27 @@ export default function Itinerary() {
       {/* Details Panel (Right Side - Desktop) */}
       <AnimatePresence mode="wait">
         {selectedItem ? (
-            <motion.div 
+            <Card 
                 key="details-desktop"
-                initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, x: 20 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="w-96 bg-white rounded-3xl shadow-xl border border-gray-100 p-8 h-fit sticky top-4 hidden lg:block"
+                className="w-96 p-8 h-fit sticky top-4 hidden lg:block"
             >
                 <div className="flex justify-between items-start mb-6">
                     <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", getTypeColor(selectedItem.type))}>
                         {getIcon(selectedItem.type)}
                     </div>
                     <div className="flex gap-2">
-                        <button onClick={() => handleEdit(selectedItem)} className="p-2 hover:bg-gray-100 rounded-xl text-gray-500 hover:text-blue-600 transition-colors"><Pencil className="w-5 h-5" /></button>
-                        <button onClick={() => handleDeleteClick(selectedItem)} className="p-2 hover:bg-red-50 rounded-xl text-gray-500 hover:text-red-600 transition-colors"><Trash2 className="w-5 h-5" /></button>
-                        <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-gray-600 transition-colors"><X className="w-5 h-5" /></button>
+                        <Button onClick={() => openEditForm(selectedItem)} variant="ghost" size="icon" className="text-gray-500 hover:text-blue-600">
+                            <Pencil className="w-5 h-5" />
+                        </Button>
+                        <Button onClick={() => openDeleteConfirm(selectedItem)} variant="ghost" size="icon" className="text-gray-500 hover:text-red-600 hover:bg-red-50">
+                            <Trash2 className="w-5 h-5" />
+                        </Button>
+                        <Button onClick={() => setSelectedItem(null)} variant="ghost" size="icon" className="text-gray-400 hover:text-gray-600">
+                            <X className="w-5 h-5" />
+                        </Button>
                     </div>
                 </div>
 
@@ -385,7 +282,7 @@ export default function Itinerary() {
                         />
                     </div>
                 </div>
-            </motion.div>
+            </Card>
         ) : (
             <motion.div 
                 key="empty"
@@ -421,9 +318,15 @@ export default function Itinerary() {
                                 {getIcon(selectedItem.type)}
                             </div>
                             <div className="flex gap-2">
-                                <button onClick={() => handleEdit(selectedItem)} className="p-2 hover:bg-gray-100 rounded-xl text-gray-500 hover:text-blue-600 transition-colors"><Pencil className="w-5 h-5" /></button>
-                                <button onClick={() => handleDeleteClick(selectedItem)} className="p-2 hover:bg-red-50 rounded-xl text-gray-500 hover:text-red-600 transition-colors"><Trash2 className="w-5 h-5" /></button>
-                                <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-gray-600 transition-colors"><X className="w-5 h-5" /></button>
+                                <Button onClick={() => openEditForm(selectedItem)} variant="ghost" size="icon" className="text-gray-500 hover:text-blue-600">
+                                    <Pencil className="w-5 h-5" />
+                                </Button>
+                                <Button onClick={() => openDeleteConfirm(selectedItem)} variant="ghost" size="icon" className="text-gray-500 hover:text-red-600 hover:bg-red-50">
+                                    <Trash2 className="w-5 h-5" />
+                                </Button>
+                                <Button onClick={() => setSelectedItem(null)} variant="ghost" size="icon" className="text-gray-400 hover:text-gray-600">
+                                    <X className="w-5 h-5" />
+                                </Button>
                             </div>
                         </div>
 
@@ -479,11 +382,8 @@ export default function Itinerary() {
 
       <ConfirmModal
         isOpen={isDeleteOpen}
-        onClose={() => {
-          setIsDeleteOpen(false);
-          setItemToDelete(null);
-        }}
-        onConfirm={handleConfirmDelete}
+        onClose={closeDeleteConfirm}
+        onConfirm={handleDelete}
         title="Delete Event"
         message={`Are you sure you want to delete "${itemToDelete?.title}"? This action cannot be undone.`}
       />

@@ -5,8 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn, API_BASE_URL, api } from '../lib/utils';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
+import Button from '../components/Button';
+import Card from '../components/Card';
+import { useResource } from '../hooks/useResource';
 
-const API_URL = `${API_BASE_URL}/api/documents`;
 const UPLOAD_URL = `${API_BASE_URL}/uploads`;
 
 const CATEGORIES = [
@@ -18,13 +20,22 @@ const CATEGORIES = [
 ];
 
 export default function Documents() {
-  const [items, setItems] = useState([]);
+  const {
+    items,
+    isFormOpen,
+    openAddForm,
+    closeForm,
+    isDeleteOpen,
+    openDeleteConfirm,
+    closeDeleteConfirm,
+    itemToDelete,
+    handleDelete,
+    fetchItems
+  } = useResource('/api/documents');
+
   const [filteredItems, setFilteredItems] = useState([]);
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState(null);
   const [file, setFile] = useState(null);
   const [type, setType] = useState('general');
   const [previewItem, setPreviewItem] = useState(null);
@@ -32,9 +43,12 @@ export default function Documents() {
   const [storage, setStorage] = useState({ used: 0, total: 1024 * 1024 * 1024, percent: 0 }); // Default 1GB
 
   useEffect(() => {
-    fetchItems();
     fetchStorage();
   }, []);
+
+  useEffect(() => {
+      fetchStorage();
+  }, [items]);
 
   useEffect(() => {
       let result = items;
@@ -47,15 +61,6 @@ export default function Documents() {
       setFilteredItems(result);
   }, [items, activeCategory, searchQuery]);
 
-  const fetchItems = async () => {
-    try {
-      const res = await api.get('/api/documents');
-      setItems(res.data);
-    } catch (error) {
-      console.error("Error fetching documents:", error);
-    }
-  };
-
   const fetchStorage = async () => {
     try {
       const res = await api.get('/api/storage');
@@ -65,7 +70,7 @@ export default function Documents() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleUpload = async (e) => {
     e.preventDefault();
     if (!file) return;
 
@@ -78,28 +83,17 @@ export default function Documents() {
           headers: { 'Content-Type': 'multipart/form-data' }
       });
       setFile(null);
-      setIsUploadOpen(false);
+      closeForm();
       fetchItems();
-      fetchStorage();
     } catch (error) {
       console.error("Error uploading document:", error);
     }
   };
 
-  const handleDeleteClick = (item) => {
-    setItemToDelete(item);
-    setIsDeleteOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!itemToDelete) return;
-    try {
-      await api.delete(`/api/documents/${itemToDelete.id}`);
-      fetchItems();
-      fetchStorage();
-    } catch (error) {
-      console.error("Error deleting document:", error);
-    }
+  const handleOpenUpload = () => {
+      openAddForm();
+      setFile(null);
+      setType('general');
   };
 
   const formatBytes = (bytes, decimals = 2) => {
@@ -123,11 +117,6 @@ export default function Documents() {
       return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
   };
 
-  const isPdf = (filename) => {
-      const ext = filename.split('.').pop().toLowerCase();
-      return ext === 'pdf';
-  };
-
   return (
     <div className="h-auto lg:h-full flex flex-col lg:flex-row gap-6 pb-4 lg:pb-0">
       {/* Sidebar */}
@@ -138,21 +127,15 @@ export default function Documents() {
                   <h2 className="text-2xl font-bold text-gray-900">Documents</h2>
                   <p className="text-sm text-gray-500">Manage your files</p>
               </div>
-              <button 
-                onClick={() => setIsUploadOpen(true)}
-                className="bg-blue-600 text-white p-2 rounded-xl shadow-lg shadow-blue-500/30"
-              >
+              <Button onClick={handleOpenUpload} size="icon">
                   <Upload className="w-5 h-5" />
-              </button>
+              </Button>
           </div>
 
-          <div className="hidden lg:block bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-              <button 
-                onClick={() => setIsUploadOpen(true)}
-                className="w-full bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 mb-6"
-              >
+          <Card className="hidden lg:block p-4">
+              <Button onClick={handleOpenUpload} className="w-full mb-6">
                   <Upload className="w-5 h-5" /> Upload File
-              </button>
+              </Button>
               
               <div className="space-y-1">
                   {CATEGORIES.map(cat => (
@@ -176,7 +159,7 @@ export default function Documents() {
                       </button>
                   ))}
               </div>
-          </div>
+          </Card>
 
           {/* Mobile Categories */}
           <div className="lg:hidden overflow-x-auto pb-2 -mx-4 px-4 flex gap-2 no-scrollbar">
@@ -210,7 +193,7 @@ export default function Documents() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-grow flex flex-col bg-white rounded-3xl shadow-sm border border-gray-100 lg:overflow-hidden min-h-[500px]">
+      <Card className="flex-grow flex flex-col lg:overflow-hidden min-h-[500px] p-0">
           {/* Header */}
           <div className="p-4 lg:p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="relative w-full sm:w-96">
@@ -224,18 +207,22 @@ export default function Documents() {
                   />
               </div>
               <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl self-end sm:self-auto">
-                  <button 
+                  <Button 
                     onClick={() => setViewMode('grid')}
-                    className={cn("p-2 rounded-lg transition-all", viewMode === 'grid' ? "bg-white shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600")}
+                    variant={viewMode === 'grid' ? 'primary' : 'ghost'}
+                    size="icon"
+                    className={cn(viewMode === 'grid' ? "bg-white shadow-sm text-blue-600 hover:bg-white" : "text-gray-400 hover:text-gray-600")}
                   >
                       <Grid className="w-5 h-5" />
-                  </button>
-                  <button 
+                  </Button>
+                  <Button 
                     onClick={() => setViewMode('list')}
-                    className={cn("p-2 rounded-lg transition-all", viewMode === 'list' ? "bg-white shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600")}
+                    variant={viewMode === 'list' ? 'primary' : 'ghost'}
+                    size="icon"
+                    className={cn(viewMode === 'list' ? "bg-white shadow-sm text-blue-600 hover:bg-white" : "text-gray-400 hover:text-gray-600")}
                   >
                       <ListIcon className="w-5 h-5" />
-                  </button>
+                  </Button>
               </div>
           </div>
 
@@ -285,12 +272,14 @@ export default function Documents() {
                                               <span>{new Date(item.upload_date).toLocaleDateString()}</span>
                                           </p>
                                       </div>
-                                      <button 
-                                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(item); }}
-                                        className="text-gray-300 hover:text-red-500 p-1.5 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                      <Button 
+                                        onClick={(e) => { e.stopPropagation(); openDeleteConfirm(item); }}
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100"
                                       >
                                           <Trash2 className="w-4 h-4" />
-                                      </button>
+                                      </Button>
                                   </div>
                               </div>
                           </motion.div>
@@ -298,16 +287,16 @@ export default function Documents() {
                   </div>
               )}
           </div>
-      </div>
+      </Card>
 
       {/* Upload Modal */}
       <Modal
-        isOpen={isUploadOpen}
-        onClose={() => setIsUploadOpen(false)}
+        isOpen={isFormOpen}
+        onClose={closeForm}
         title="Upload Document"
         maxWidth="max-w-md"
       >
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleUpload} className="space-y-6">
             <div className="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center hover:border-blue-500 hover:bg-blue-50 transition-all cursor-pointer relative">
                 <input 
                     type="file" 
@@ -344,9 +333,9 @@ export default function Documents() {
                 </select>
             </div>
 
-            <button type="submit" className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all transform hover:scale-[1.02]">
+            <Button type="submit" className="w-full">
                 Upload File
-            </button>
+            </Button>
         </form>
       </Modal>
 
@@ -380,7 +369,9 @@ export default function Documents() {
                         >
                             <Upload className="w-4 h-4 rotate-180" /> Download
                         </a>
-                        <button onClick={() => setPreviewItem(null)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-900 transition-colors"><X className="w-5 h-5" /></button>
+                        <Button onClick={() => setPreviewItem(null)} variant="ghost" size="icon">
+                            <X className="w-5 h-5" />
+                        </Button>
                     </div>
                 </div>
                 <div className="flex-grow overflow-auto bg-gray-100 p-8 flex items-center justify-center">
@@ -397,11 +388,8 @@ export default function Documents() {
 
       <ConfirmModal
         isOpen={isDeleteOpen}
-        onClose={() => {
-          setIsDeleteOpen(false);
-          setItemToDelete(null);
-        }}
-        onConfirm={handleConfirmDelete}
+        onClose={closeDeleteConfirm}
+        onConfirm={handleDelete}
         title="Delete Document"
         message={`Are you sure you want to delete "${itemToDelete?.name}"? This action cannot be undone.`}
       />

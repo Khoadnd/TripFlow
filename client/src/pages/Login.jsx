@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User } from 'lucide-react';
 import { api } from '../lib/utils';
+import Card from '../components/Card';
+import Button from '../components/Button';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -23,7 +25,7 @@ export default function Login() {
 
   return (
     <div className="min-h-[100dvh] bg-gray-100 flex items-center justify-center p-4 pb-safe">
-      <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-8">
+      <Card className="shadow-xl w-full max-w-md p-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Welcome Back</h1>
           <p className="text-gray-500 mt-2">Please sign in to continue</p>
@@ -70,14 +72,14 @@ export default function Login() {
             </div>
           </div>
 
-          <button
+          <Button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-blue-600/30"
+            className="w-full shadow-lg shadow-blue-600/30"
           >
             Sign In
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

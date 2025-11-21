@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { motion } from 'framer-motion';
-import { Save, User, MapPin, Lock, LogOut, Calendar, Wallet } from 'lucide-react';
-import { API_BASE_URL, api } from '../lib/utils';
+import { Save, User, MapPin, Lock, LogOut, Calendar } from 'lucide-react';
+import { api } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
+import LocationInput from '../components/LocationInput';
+import Card from '../components/Card';
+import Button from '../components/Button';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -18,8 +20,6 @@ export default function Settings() {
   });
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -60,26 +60,13 @@ export default function Settings() {
     }
   };
 
-  const handleSearchLocation = async (query) => {
-    if (!query) return;
-    try {
-      // External API call - do NOT use 'api' instance to avoid sending credentials
-      const res = await axios.get(`https://geocoding-api.open-meteo.com/v1/search?name=${query}&count=5&language=en&format=json`);
-      setSearchResults(res.data.results || []);
-    } catch (error) {
-      console.error("Error searching location:", error);
-    }
-  };
-
-  const selectLocation = (result) => {
+  const handleLocationSelect = (result) => {
     setProfile({
       ...profile,
-      home_city: `${result.name}, ${result.country}`,
-      home_lat: result.latitude,
-      home_lon: result.longitude
+      home_city: result.display_name,
+      home_lat: parseFloat(result.lat),
+      home_lon: parseFloat(result.lon)
     });
-    setSearchResults([]);
-    setIsSearching(false);
   };
 
   return (
@@ -90,7 +77,7 @@ export default function Settings() {
     >
       <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6 md:mb-8 pt-2">Settings</h1>
 
-      <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 mb-8">
+      <Card className="p-6 md:p-8 mb-8">
         {message && (
           <div className={`p-4 rounded-xl mb-6 text-center ${message.includes('Error') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
             {message}
@@ -165,32 +152,13 @@ export default function Settings() {
             </h2>
             <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-              <input 
-                type="text" 
-                value={profile.home_city || ''} 
-                onChange={(e) => {
-                  setProfile({...profile, home_city: e.target.value});
-                  handleSearchLocation(e.target.value);
-                  setIsSearching(true);
-                }}
-                className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              <LocationInput 
+                value={profile.home_city || ''}
+                onChange={(val) => setProfile({...profile, home_city: val})}
+                onSelect={handleLocationSelect}
                 placeholder="Search for a city..."
+                className="py-2"
               />
-              {isSearching && searchResults.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                  {searchResults.map((result) => (
-                    <button 
-                      key={result.id}
-                      type="button"
-                      onClick={() => selectLocation(result)}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm"
-                    >
-                      <span className="font-bold">{result.name}</span>
-                      <span className="text-gray-500 ml-2">{result.admin1}, {result.country}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
               <div className="flex gap-4 mt-2 text-xs text-gray-400">
                 <span>Lat: {profile.home_lat?.toFixed(4)}</span>
                 <span>Lon: {profile.home_lon?.toFixed(4)}</span>
@@ -218,22 +186,26 @@ export default function Settings() {
           </div>
 
           <div className="pt-4">
-            <button 
+            <Button 
               type="submit" 
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
+              className="w-full shadow-lg shadow-blue-600/30"
+              icon={Save}
             >
-              <Save className="w-5 h-5" /> Save Changes
-            </button>
+              Save Changes
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
 
-      <button 
+      <Button 
         onClick={handleLogout}
-        className="w-full bg-white border border-red-100 text-red-600 font-bold py-3 px-4 rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center gap-2 mb-8"
+        variant="danger"
+        variantType="outline"
+        className="w-full mb-8"
+        icon={LogOut}
       >
-        <LogOut className="w-5 h-5" /> Log Out
-      </button>
+        Log Out
+      </Button>
     </motion.div>
   );
 }

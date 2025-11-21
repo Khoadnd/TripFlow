@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
+import Button from './Button';
 
 export default function Modal({ isOpen, onClose, title, children, maxWidth = "max-w-2xl" }) {
   useEffect(() => {
@@ -37,12 +38,14 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = "ma
           >
             <div className="flex justify-between items-center p-6 border-b border-gray-100 flex-shrink-0">
               <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={onClose}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                className="rounded-full"
               >
                 <X className="w-6 h-6 text-gray-500" />
-              </button>
+              </Button>
             </div>
             <div className="p-6 overflow-y-auto custom-scrollbar">
               {children}

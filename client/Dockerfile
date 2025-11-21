@@ -18,12 +18,18 @@ RUN npm run build
 # Production Stage
 FROM nginx:alpine
 
+# Install openssl for cert generation and gettext for envsubst
+RUN apk add --no-cache openssl gettext
+
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf.template /etc/nginx/templates/nginx.conf.template
+COPY entrypoint.sh /docker-entrypoint.sh
+
+RUN chmod +x /docker-entrypoint.sh
 
 # Add mjs support to mime.types
 RUN sed -i 's/application\/javascript\s\+js;/application\/javascript js mjs;/g' /etc/nginx/mime.types
 
-EXPOSE 80
+EXPOSE 80 443
 
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

@@ -3,27 +3,41 @@ import { Wallet, Plus, Trash2, TrendingUp, DollarSign, PieChart as PieChartIcon,
 import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { format } from 'date-fns';
-import { cn, API_BASE_URL, api } from '../lib/utils';
+import { cn, api } from '../lib/utils';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
-
-const API_URL = `${API_BASE_URL}/api/expenses`;
+import PageHeader from '../components/PageHeader';
+import Button from '../components/Button';
+import Card from '../components/Card';
+import { useResource } from '../hooks/useResource';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
 const CATEGORIES = ['Food', 'Transport', 'Accommodation', 'Activity', 'Shopping', 'Other'];
 
 export default function Budget() {
-  const [items, setItems] = useState([]);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState(null);
-  const [editingId, setEditingId] = useState(null);
-  const [newItem, setNewItem] = useState({ title: '', amount: '', category: 'Food', date: new Date().toISOString().split('T')[0], notes: '' });
+  const initialFormState = { title: '', amount: '', category: 'Food', date: new Date().toISOString().split('T')[0], notes: '' };
+
+  const {
+    items,
+    formData,
+    setFormData,
+    isFormOpen,
+    openAddForm,
+    openEditForm,
+    closeForm,
+    isDeleteOpen,
+    openDeleteConfirm,
+    closeDeleteConfirm,
+    itemToDelete,
+    handleDelete,
+    handleSubmit,
+    editingId
+  } = useResource('/api/expenses', initialFormState);
+
   const [totalBudget, setTotalBudget] = useState(5000); // Default budget
 
   useEffect(() => {
-    fetchItems();
     fetchBudget();
   }, []);
 
@@ -34,59 +48,6 @@ export default function Budget() {
       } catch (error) {
           console.error("Error fetching budget:", error);
       }
-  };
-
-  const fetchItems = async () => {
-    try {
-      const res = await api.get('/api/expenses');
-      setItems(res.data);
-    } catch (error) {
-      console.error("Error fetching expenses:", error);
-    }
-  };
-
-  const handleEdit = (item) => {
-      setNewItem({
-          title: item.title,
-          amount: item.amount,
-          category: item.category,
-          date: item.date.split('T')[0],
-          notes: item.notes || ''
-      });
-      setEditingId(item.id);
-      setIsFormOpen(true);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editingId) {
-          await api.put(`/api/expenses/${editingId}`, newItem);
-      } else {
-          await api.post('/api/expenses', newItem);
-      }
-      setNewItem({ title: '', amount: '', category: 'Food', date: new Date().toISOString().split('T')[0], notes: '' });
-      setEditingId(null);
-      setIsFormOpen(false);
-      fetchItems();
-    } catch (error) {
-      console.error("Error saving expense:", error);
-    }
-  };
-
-  const handleDeleteClick = (item) => {
-    setItemToDelete(item);
-    setIsDeleteOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!itemToDelete) return;
-    try {
-      await api.delete(`/api/expenses/${itemToDelete.id}`);
-      fetchItems();
-    } catch (error) {
-      console.error("Error deleting expense:", error);
-    }
   };
 
   const handleBudgetChange = async (e) => {
@@ -111,22 +72,21 @@ export default function Budget() {
 
   return (
     <div className="h-auto lg:h-full flex flex-col gap-6 pb-4 lg:pb-0">
-      <div className="flex justify-between items-center pt-2">
-        <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Budget & Expenses</h2>
-            <p className="text-sm md:text-base text-gray-500">Track your spending</p>
-        </div>
-        <button 
-            onClick={() => setIsFormOpen(true)} 
-            className="bg-gray-900 text-white px-4 py-2 md:px-5 md:py-2.5 rounded-xl hover:bg-gray-800 flex items-center gap-2 shadow-lg shadow-gray-900/20 transition-all hover:scale-105 text-sm md:text-base"
-        >
-            <Plus className="w-4 h-4 md:w-5 md:h-5" /> <span className="hidden md:inline">Log Expense</span><span className="md:hidden">Add</span>
-        </button>
-      </div>
+      <PageHeader 
+        title="Budget & Expenses" 
+        subtitle="Track your spending"
+        action={
+            <Button onClick={openAddForm} variant="dark">
+                <Plus className="w-4 h-4 md:w-5 md:h-5" /> 
+                <span className="hidden md:inline">Log Expense</span>
+                <span className="md:hidden">Add</span>
+            </Button>
+        }
+      />
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
+          <Card className="relative overflow-hidden">
               <div className="absolute top-0 right-0 p-4 opacity-10">
                   <Wallet className="w-24 h-24 text-blue-600" />
               </div>
@@ -143,9 +103,9 @@ export default function Budget() {
               <div className="mt-4 text-sm text-blue-600 bg-blue-50 inline-block px-2 py-1 rounded-lg font-medium">
                   Editable
               </div>
-          </div>
+          </Card>
 
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+          <Card>
               <div className="flex justify-between items-start mb-2">
                   <p className="text-gray-500 font-medium">Total Spent</p>
                   <div className="p-2 bg-red-50 rounded-xl text-red-600">
@@ -154,9 +114,9 @@ export default function Budget() {
               </div>
               <h3 className="text-3xl font-bold text-gray-900">¥{totalSpent.toFixed(2)}</h3>
               <p className="text-sm text-gray-400 mt-1">{((totalSpent/totalBudget)*100).toFixed(1)}% of budget</p>
-          </div>
+          </Card>
 
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+          <Card>
               <div className="flex justify-between items-start mb-2">
                   <p className="text-gray-500 font-medium">Remaining</p>
                   <div className="p-2 bg-green-50 rounded-xl text-green-600">
@@ -172,12 +132,12 @@ export default function Budget() {
                     style={{ width: `${progress}%` }}
                   ></div>
               </div>
-          </div>
+          </Card>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 flex-grow lg:overflow-hidden">
           {/* Chart Section */}
-          <div className="w-full lg:w-1/3 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col min-h-[300px]">
+          <Card className="w-full lg:w-1/3 flex flex-col min-h-[300px]">
               <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
                   <PieChartIcon className="w-5 h-5 text-gray-400" /> Spending Breakdown
               </h3>
@@ -209,14 +169,14 @@ export default function Budget() {
                       </div>
                   )}
               </div>
-          </div>
+          </Card>
 
           {/* Transactions List */}
-          <div className="w-full lg:w-2/3 bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col lg:overflow-hidden min-h-[400px] lg:min-h-0">
+          <Card className="w-full lg:w-2/3 flex flex-col lg:overflow-hidden min-h-[400px] lg:min-h-0 p-0">
               <div className="p-6 border-b border-gray-100">
                   <h3 className="font-bold text-gray-800">Recent Transactions</h3>
               </div>
-              <div className="flex-grow lg:overflow-y-auto">
+              <div className="flex-grow lg:overflow-y-auto p-2">
                   {items.length === 0 ? (
                       <div className="text-center py-12 text-gray-400">
                           <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-20" />
@@ -234,7 +194,7 @@ export default function Budget() {
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: index * 0.05 }}
-                                className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group"
+                                className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group rounded-xl"
                               >
                                   <div className="flex items-center gap-4">
                                       <div>
@@ -253,12 +213,12 @@ export default function Budget() {
                                   <div className="flex items-center gap-4">
                                       <span className="font-bold text-gray-900 text-lg">-¥{item.amount.toFixed(2)}</span>
                                       <div className="flex gap-1">
-                                          <button onClick={() => handleEdit(item)} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100">
+                                          <Button onClick={() => openEditForm(item)} variant="ghost" size="icon" className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100">
                                               <Edit2 className="w-4 h-4" />
-                                          </button>
-                                          <button onClick={() => handleDeleteClick(item)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100">
+                                          </Button>
+                                          <Button onClick={() => openDeleteConfirm(item)} variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50 opacity-100 lg:opacity-0 lg:group-hover:opacity-100">
                                               <Trash2 className="w-4 h-4" />
-                                          </button>
+                                          </Button>
                                       </div>
                                   </div>
                               </motion.div>
@@ -266,34 +226,30 @@ export default function Budget() {
                       </div>
                   )}
               </div>
-          </div>
+          </Card>
       </div>
 
       {/* Add Expense Modal */}
       <Modal
         isOpen={isFormOpen}
-        onClose={() => {
-            setIsFormOpen(false);
-            setEditingId(null);
-            setNewItem({ title: '', amount: '', category: 'Food', date: new Date().toISOString().split('T')[0], notes: '' });
-        }}
+        onClose={closeForm}
         title={editingId ? "Edit Expense" : "Log Expense"}
         maxWidth="max-w-md"
       >
         <form onSubmit={handleSubmit} className="space-y-5">
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                <input type="text" placeholder="e.g. Dinner at Chez Pierre" className="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} required autoFocus />
+                <input type="text" placeholder="e.g. Dinner at Chez Pierre" className="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required autoFocus />
             </div>
             
             <div className="grid grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Amount (¥)</label>
-                    <input type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" className="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={newItem.amount} onChange={e => setNewItem({...newItem, amount: parseFloat(e.target.value)})} required />
+                    <input type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" className="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={formData.amount} onChange={e => setFormData({...formData, amount: parseFloat(e.target.value)})} required />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                    <input type="date" className="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={newItem.date} onChange={e => setNewItem({...newItem, date: e.target.value})} required />
+                    <input type="date" className="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all" value={formData.date ? formData.date.split('T')[0] : ''} onChange={e => setFormData({...formData, date: e.target.value})} required />
                 </div>
             </div>
             
@@ -304,10 +260,10 @@ export default function Budget() {
                         <button
                             key={cat}
                             type="button"
-                            onClick={() => setNewItem({...newItem, category: cat})}
+                            onClick={() => setFormData({...formData, category: cat})}
                             className={cn(
                                 "py-2 px-1 rounded-lg text-xs font-medium transition-all border",
-                                newItem.category === cat 
+                                formData.category === cat 
                                     ? "bg-blue-600 text-white border-blue-600 shadow-md" 
                                     : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
                             )}
@@ -320,22 +276,19 @@ export default function Budget() {
             
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
-                <textarea className="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all h-20 resize-none" value={newItem.notes} onChange={e => setNewItem({...newItem, notes: e.target.value})}></textarea>
+                <textarea className="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all h-20 resize-none" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})}></textarea>
             </div>
             
-            <button type="submit" className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all transform hover:scale-[1.02] mt-2">
+            <Button type="submit" className="w-full mt-2" size="lg">
                 Save Expense
-            </button>
+            </Button>
         </form>
       </Modal>
 
       <ConfirmModal
         isOpen={isDeleteOpen}
-        onClose={() => {
-          setIsDeleteOpen(false);
-          setItemToDelete(null);
-        }}
-        onConfirm={handleConfirmDelete}
+        onClose={closeDeleteConfirm}
+        onConfirm={handleDelete}
         title="Delete Expense"
         message={`Are you sure you want to delete "${itemToDelete?.title}"? This action cannot be undone.`}
       />

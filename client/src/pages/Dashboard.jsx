@@ -6,6 +6,8 @@ import { AreaChart, Area, ResponsiveContainer, ComposedChart, Line, XAxis, Toolt
 import { format, differenceInDays, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from 'date-fns';
 import { Link, useNavigate } from 'react-router-dom';
 import Map from '../components/Map';
+import LocationInput from '../components/LocationInput';
+import Card from '../components/Card';
 import { API_BASE_URL, api } from '../lib/utils';
 
 const API_URL = `${API_BASE_URL}/api/itinerary`;
@@ -27,7 +29,6 @@ export default function Dashboard() {
   const [location, setLocation] = useState({ name: 'HangZhou, China', lat: 30.29365, lon: 120.16142 });
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
 
   useEffect(() => {
     fetchUserProfile();
@@ -91,26 +92,14 @@ export default function Dashboard() {
     }
   };
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    try {
-      const res = await axios.get(`https://geocoding-api.open-meteo.com/v1/search?name=${searchQuery}&count=5&language=en&format=json`);
-      setSearchResults(res.data.results || []);
-    } catch (error) {
-      console.error("Error searching location:", error);
-    }
-  };
-
   const selectLocation = (result) => {
     setLocation({
-      name: `${result.name}, ${result.country}`,
-      lat: result.latitude,
-      lon: result.longitude
+      name: result.display_name.split(',')[0],
+      lat: parseFloat(result.lat),
+      lon: parseFloat(result.lon)
     });
     setIsSearching(false);
     setSearchQuery('');
-    setSearchResults([]);
   };
 
   const getWeatherIcon = (code) => {
@@ -256,29 +245,13 @@ export default function Dashboard() {
                         <h3 className="font-bold text-lg">Change Location</h3>
                         <button onClick={() => setIsSearching(false)} className="p-1 hover:bg-white/10 rounded-full"><X className="w-5 h-5" /></button>
                     </div>
-                    <form onSubmit={handleSearch} className="flex gap-2 mb-4">
-                        <input 
-                            type="text" 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search city..." 
-                            className="flex-1 bg-white/20 border-none placeholder-blue-100 text-white rounded-xl px-3 py-2 focus:ring-2 focus:ring-white/50 outline-none"
-                            autoFocus
-                        />
-                        <button type="submit" className="bg-white/20 p-2 rounded-xl hover:bg-white/30"><Search className="w-5 h-5" /></button>
-                    </form>
-                    <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar max-h-[150px]">
-                        {searchResults.map((result) => (
-                            <button 
-                                key={result.id}
-                                onClick={() => selectLocation(result)}
-                                className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-lg transition-colors text-sm"
-                            >
-                                <span className="font-bold block">{result.name}</span>
-                                <span className="text-blue-100 text-xs">{result.admin1}, {result.country}</span>
-                            </button>
-                        ))}
-                    </div>
+                    <LocationInput 
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        onSelect={selectLocation}
+                        placeholder="Search city..."
+                        className="bg-white/20 border-none placeholder-blue-100 text-white focus:ring-white/50"
+                    />
                 </div>
             ) : (
                 <div className="relative z-10 h-full flex flex-col justify-between">
@@ -323,7 +296,7 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Budget Widget */}
-        <motion.div variants={item} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/budget')}>
+        <Card variants={item} animate hover onClick={() => navigate('/budget')}>
             <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-green-50 rounded-xl">
@@ -348,10 +321,10 @@ export default function Dashboard() {
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
-        </motion.div>
+        </Card>
 
         {/* Up Next Widget */}
-        <motion.div variants={item} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between">
+        <Card variants={item} animate className="flex flex-col justify-between">
             <div>
                 <div className="flex items-center gap-3 mb-4">
                     <div className="p-2 bg-purple-50 rounded-xl">
@@ -380,12 +353,12 @@ export default function Dashboard() {
             <Link to="/itinerary" className="w-full mt-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 group">
                 View Full Itinerary <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
-        </motion.div>
+        </Card>
       </div>
 
       {/* Recent Activity / Map Placeholder */}
       <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-3xl p-6 shadow-sm border border-gray-100 min-h-[300px] flex flex-col">
+        <Card className="lg:col-span-2 min-h-[300px] flex flex-col">
             <h3 className="font-bold text-gray-800 mb-4">Trip Overview</h3>
             <div className="flex-grow rounded-2xl overflow-hidden h-[300px]">
                 <Map 
@@ -402,7 +375,7 @@ export default function Dashboard() {
                     connectPoints={true}
                 />
             </div>
-        </div>
+        </Card>
         <div className="bg-gradient-to-b from-gray-900 to-gray-800 rounded-3xl p-6 text-white shadow-xl">
             <h3 className="font-bold text-lg mb-4">Quick Actions</h3>
             <div className="space-y-3">
